@@ -3,7 +3,7 @@ At some point, I'd like this __init__ file to be smart enough to do all the
 relevant edits to routing.py, middleware.py, etc, etc.
 '''
 
-REQUIRED = ['facebook.apikey','facebook.secret','facebook.callback','facebook.url','facebook.appid']
+REQUIRED = ['facebook.apikey','facebook.appsecret','facebook.appid','facebook.callbackurl','facebook.canvasurl']
 
 def check_config() :
 	
@@ -21,3 +21,4 @@ del check_config
 del REQUIRED
 
 import controllers
+import graphapi
