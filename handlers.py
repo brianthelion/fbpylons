@@ -1,17 +1,133 @@
 import logging
 log = logging.getLogger(__name__)
 
-from pylons import request
-
+from pylons import request, config
+import helpers as h
 import urllib
-import simplejson
-import cgi
-
-import config
 
 TOKEN_BASE_URL = 'https://graph.facebook.com/oauth/access_token?'
 AUTH_BASE_URL = 'https://graph.facebook.com/oauth/authorize?'
+EXCHANGE_BASE_URL = 'https://graph.facebook.com/oauth/exchange_sessions'
 
+class FBAppUser(object) :
+
+	def __init__(self) :
+		
+		self.uid = None
+	
+	def via_facebook(self) 		: raise NotImplementedError()
+	def via_ajax(self) 		: raise NotImplementedError()
+	def in_canvas(self) 		: raise NotImplementedError()
+	def logged_in(self) 		: raise NotImplementedError()
+	def added_app(self) 		: raise NotImplementedError()
+	def gave_perms(self,*perms) 	: raise NotImplementedError()
+	def auth(self,*perms) 		: raise NotImplementedError()
+
+class RestUser(FBAppUser) :
+	
+	def via_facebook(self) :
+		
+		for k in request.params.keys() :
+			if k.startswith( 'fb_sig_' ) : return True
+			
+		return False
+	
+	def in_canvas(self) : return request.params.has_key('fb_sig_in_canvas') and request.params['fb_sig_in_canvas'] == '1'
+	
+	def logged_in(self) :
+		
+		if request.params.has_key( 'fb_sig_logged_out_facebook' ) and request.params['fb_sig_logged_out_facebook'] == '1' : return False
+		else : return True
+	
+	def added_app(self) : return request.params.has_key('fb_sig_added') and request.params['fb_sig_added'] == '1'
+
+	def gave_perms(self,*perms) :
+		
+		if not request.params.has_key( 'fb_sig_ext_perms' ) : return False
+		
+		want = set(perms)
+		got = set( request.params['fb_sig_ext_perms'].split(',') )
+		
+		return want <= got
+
+class CanvasAppUser(RestUser) :
+	
+	def auth(self,*perms) :
+
+		def already_authed(user) :
+			
+			log.debug('already_authed'), user.access_token is not None
+			return user.access_token is not None
+
+		def token_from_session(user) :
+			
+			log.debug('token_from_session')
+			if request.params.has_key('session') :
+				
+				user.session = simplejson.loads( request.params['session'] )
+				print user.session
+				return True
+				
+			else : return False
+		
+		def redirect_to_auth(user) :
+			
+			log.debug('redirect_to_auth')
+			
+			args = {}
+			args['client_id'] = config['facebook.appid']
+			args['redirect_uri'] = h.url()
+			
+			if perms :
+				args['scope'] = ','.join(perms)
+			
+			auth_url = AUTH_BASE_URL + urllib.urlencode(args)
+			
+			log.debug( auth_url )
+			return h.redirect( auth_url,qualified=False )
+		
+		return already_authed(self) or token_from_session(self) or redirect_to_auth(self)
+
+class MigratingUser(CanvasAppUser) :
+
+	def __init__( self ) :
+		
+		self.access_token = None
+		self.uid = None
+		
+		if self.added_app() :
+		
+			self.uid = request.params['fb_sig_user']
+			self.access_token = self.exchange_sessions( request.params['fb_sig_session_key'] )[0]['access_token']
+	
+	def auth_pages(self,*perms,pids=[]) :
+		
+		args = {}
+		args['client_id'] = config['facebook.appid']
+		args['redirect_uri'] = h.url()
+		args['enable_profile_selector'] = 1
+		
+		if pids :
+			args['select_pages_ids'] = pids
+		
+		auth_url = AUTH_BASE_URL + urllib.urlencode(args)
+		
+		return h.redirect( auth_url,qualified=False )
+	
+	def exchange_sessions( self,key ) :
+		
+		args = {}
+		args['type'] = 'client_cred'
+		args['client_id'] = config['facebook.appid']
+		args['client_secret'] = config['facebook.appsecret']
+		args['sessions'] = key
+		
+		return h.retrieve_objs( EXCHANGE_BASE_URL,**args)
+
+WorkingUser = MigratingUser
+
+################################################################################
+"""
 class RedirectRequired( Exception ) : pass
 
 class AuthorizationHandler( object ) :
@@ -129,3 +245,4 @@ class ServersideAuthorizationHanlder( BasicAuthorizationHandler ) :
 		raise RedirectRequired( auth_url )
 
 class CookieAuthorizationHandler( BasicAuthorizationHandler ) : pass
+"""
