@@ -5,9 +5,9 @@ from pylons import request, config
 import helpers as h
 import urllib
 
-TOKEN_BASE_URL = 'https://graph.facebook.com/oauth/access_token?'
-AUTH_BASE_URL = 'https://graph.facebook.com/oauth/authorize?'
-EXCHANGE_BASE_URL = 'https://graph.facebook.com/oauth/exchange_sessions'
+TOKEN_BASE_URL		= 'https://graph.facebook.com/oauth/access_token?'
+AUTH_BASE_URL		= 'https://graph.facebook.com/oauth/authorize?'
+EXCHANGE_BASE_URL	= 'https://graph.facebook.com/oauth/exchange_sessions'
 
 class FBAppUser(object) :
 
@@ -100,19 +100,24 @@ class MigratingUser(CanvasAppUser) :
 			self.uid = request.params['fb_sig_user']
 			self.access_token = self.exchange_sessions( request.params['fb_sig_session_key'] )[0]['access_token']
 	
-	def auth_pages(self,*perms,pids=[]) :
+	def auth_pages(self,perms,pid) :
 		
 		args = {}
 		args['client_id'] = config['facebook.appid']
 		args['redirect_uri'] = h.url()
 		args['enable_profile_selector'] = 1
+#		args['profile_selector_ids'] = [pid]
 		
-		if pids :
-			args['select_pages_ids'] = pids
+		log.debug( 'MigratingUser.auth_pages %s' % (args,) )
 		
 		auth_url = AUTH_BASE_URL + urllib.urlencode(args)
 		
 		return h.redirect( auth_url,qualified=False )
+	
+	def gave_page_perms(self,perms,pid) :
+		
+		print request.params
+		return True
 	
 	def exchange_sessions( self,key ) :
 		

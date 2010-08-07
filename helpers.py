@@ -47,10 +47,10 @@ def redirect(route,**dargs) :
 	next_url = url(route,**dargs)
 	
 	if request.params.has_key('fb_sig_in_canvas') and request.params['fb_sig_in_canvas'] == '1' :
-		log.debug( 'REDIRECT : %s' % (next_url,) )
+		log.debug( 'fb:redirect : %s' % (next_url,) )
 		return '<fb:redirect url="%s" />' % next_url
 	else :
-		log.debug( 'REDIRECT : %s' % (next_url,) )
+		log.debug( 'http:redirect : %s' % (next_url,) )
 		return redirect_to( next_url )
 
 def retrieve_objs( url,**dargs ) :
@@ -60,14 +60,16 @@ def retrieve_objs( url,**dargs ) :
 	url = url + '?' + urllib.urlencode(dargs)
 	
 	data = urllib.urlopen( url ).read()
-	log.debug( 'helpers.retrieve_objs %s' % (data,) )
+#	log.debug( 'helpers.retrieve_objs %s' % (data,) )
 	
 	objs = simplejson.loads( data )
-	log.debug( 'helpers.retrieve_objs %s' % (objs,) )
+	log.debug( 'helpers.retrieve_objs %s : %s' % (type(objs),objs,) )
 	
 	return objs
 	
 def fql_query( query_string,token ) :
+	
+	class FQLError(Exception) : pass
 	
 	log.debug( 'fql_query: %s' % (query_string,) )
 	
@@ -76,5 +78,8 @@ def fql_query( query_string,token ) :
 	args['access_token'] = token
 	args['format'] = 'json'
 
-	return retrieve_objs( FQL_BASE_URL,**args )
+	objs = retrieve_objs( FQL_BASE_URL,**args )
+	
+	if isinstance(objs,dict) and objs.has_key('error') : raise FQLError()
+	else : return objs
 
